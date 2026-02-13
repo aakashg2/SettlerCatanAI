@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Catan Board Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 30px;
+            max-width: 1200px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 2em;
+        }
+
+        #boardCanvas {
+            display: block;
+            margin: 0 auto;
+            border: 2px solid #333;
+            border-radius: 10px;
+            background: #f0e6d2;
+            cursor: crosshair;
+        }
+
+        .controls {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 0 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #764ba2;
+        }
+
+        .legend {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .legend-color {
+            width: 30px;
+            height: 30px;
+            border-radius: 5px;
+            border: 2px solid #333;
+        }
+
+        .info-panel {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 8px;
+            min-height: 60px;
+            text-align: center;
+        }
+
+        .info-panel h3 {
+            margin-bottom: 8px;
+            color: #667eea;
+        }
+
+        .info-panel p {
+            color: #666;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎲 Catan Board Viewer</h1>
+        
+        <canvas id="boardCanvas" width="1000" height="800"></canvas>
+        
+        <div class="controls">
+            <button onclick="zoomIn()">Zoom In (+)</button>
+            <button onclick="zoomOut()">Zoom Out (-)</button>
+            <button onclick="resetView()">Reset View</button>
+            <button onclick="toggleNodes()">Toggle Nodes</button>
+        </div>
+
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-color" style="background: #8B7355;"></div>
+                <span>Rock (Ore)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #CD853F;"></div>
+                <span>Mud (Brick)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #F4A460;"></div>
+                <span>Wheat</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #228B22;"></div>
+                <span>Tree (Wood)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #90EE90;"></div>
+                <span>Sheep</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #F5DEB3;"></div>
+                <span>Desert</span>
+            </div>
+        </div>
+
+        <div class="info-panel">
+            <h3>Click on tiles or nodes to see details</h3>
+            <p id="infoText">Hover over elements for information</p>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('boardCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        let boardData = null;
+        let scale = 70;
+        let offsetX = canvas.width / 2;
+        let offsetY = canvas.height / 2 + 50;
+        let showNodes = true;
+        let hoveredElement = null;
+
+        // Resource colors
+        const resourceColors = {
+            'rock': '#8B7355',
+            'mud': '#CD853F',
+            'wheat': '#F4A460',
+            'tree': '#228B22',
+            'sheep': '#90EE90',
+            'desert': '#F5DEB3'
+        };
+
+        // Fetch board data from server
+        async function loadBoard() {
+            try {
+                const response = await fetch('/api/board');
+                boardData = await response.json();
+                drawBoard();
+            } catch (error) {
+                console.error('Error loading board:', error);
+                // Draw sample board if server data not available
+                drawSampleBoard();
+            }
+        }
+
+        function drawBoard() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (!boardData || !boardData.tiles || boardData.tiles.length === 0) {
+                drawSampleBoard();
+                return;
+            }
+
+            // Draw tiles
+            boardData.tiles.forEach(tile => {
+                drawHexagon(tile.center_x, tile.center_y, tile.resource, tile.number);
+            });
+
+            // Draw edges
+            if (boardData.edges && showNodes) {
+                ctx.strokeStyle = '#8B4513';
+                ctx.lineWidth = 2;
+                boardData.edges.forEach(edge => {
+                    const source = boardData.nodes[edge.source];
+                    const target = boardData.nodes[edge.target];
+                    if (source && target) {
+                        const sx = offsetX + source.x * scale;
+                        const sy = offsetY + source.y * scale;
+                        const tx = offsetX + target.x * scale;
+                        const ty = offsetY + target.y * scale;
+                        
+                        ctx.beginPath();
+                        ctx.moveTo(sx, sy);
+                        ctx.lineTo(tx, ty);
+                        ctx.stroke();
+                    }
+                });
+            }
+
+            // Draw nodes
+            if (showNodes && boardData.nodes) {
+                boardData.nodes.forEach((node, idx) => {
+                    drawNode(node.x, node.y, node.resources, idx);
+                });
+            }
+        }
+
+        function drawSampleBoard() {
+            // Draw a sample Catan board layout
+            const layout = [
+                [0, 1, 2],
+                [3, 4, 5, 6],
+                [7, 8, 9, 10, 11],
+                [12, 13, 14, 15],
+                [16, 17, 18]
+            ];
+
+            const sampleResources = ['rock', 'mud', 'wheat', 'tree', 'sheep', 'wheat', 
+                                     'tree', 'mud', 'wheat', 'sheep', 'rock', 'tree',
+                                     'sheep', 'wheat', 'rock', 'sheep', 'mud', 'tree', 'desert'];
+            const sampleNumbers = [10, 2, 9, 12, 6, 4, 10, 9, 11, 3, 8, 8, 3, 4, 5, 5, 6, 11, -1];
+
+            const hexHeight = 1.732;
+            const hexWidth = 2.0;
+
+            layout.forEach((row, rowIdx) => {
+                const y = -rowIdx * hexHeight * 0.75;
+                const xOffset = -(row.length - 1) * hexWidth / 2;
+
+                row.forEach((tileIdx, colIdx) => {
+                    const x = xOffset + colIdx * hexWidth;
+                    drawHexagon(x, y, sampleResources[tileIdx], sampleNumbers[tileIdx]);
+                });
+            });
+        }
+
+        function drawHexagon(x, y, resource, number) {
+            const size = 0.55;
+            const screenX = offsetX + x * scale;
+            const screenY = offsetY + y * scale;
+            const radius = size * scale;
+
+            // Draw hexagon
+            ctx.beginPath();
+            for (let i = 0; i < 6; i++) {
+                const angle = Math.PI / 3 * i - Math.PI / 2;
+                const px = screenX + radius * Math.cos(angle);
+                const py = screenY + radius * Math.sin(angle);
+                if (i === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+
+            // Fill with resource color
+            ctx.fillStyle = resourceColors[resource] || '#CCC';
+            ctx.fill();
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            // Draw number token
+            if (number > 0) {
+                ctx.fillStyle = '#F5E6D3';
+                ctx.beginPath();
+                ctx.arc(screenX, screenY, radius * 0.4, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#333';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // Draw number
+                ctx.fillStyle = number === 6 || number === 8 ? '#DC143C' : '#333';
+                ctx.font = 'bold ' + (radius * 0.5) + 'px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(number, screenX, screenY);
+            }
+
+            // Draw resource text
+            ctx.fillStyle = '#000';
+            ctx.font = (radius * 0.2) + 'px Arial';
+            ctx.fillText(resource.toUpperCase(), screenX, screenY + radius * 0.7);
+        }
+
+        function drawNode(x, y, resources, id) {
+            const screenX = offsetX + x * scale;
+            const screenY = offsetY + y * scale;
+
+            // Determine node color based on resources
+            let color = 'lightcoral';
+            if (resources) {
+                if (resources.length === 2) color = 'lightblue';
+                else if (resources.length === 3) color = 'lightgreen';
+                else if (resources.length > 3) color = 'gold';
+            }
+
+            // Draw node circle
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(screenX, screenY, 8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+
+        function zoomIn() {
+            scale *= 1.2;
+            drawBoard();
+        }
+
+        function zoomOut() {
+            scale /= 1.2;
+            drawBoard();
+        }
+
+        function resetView() {
+            scale = 70;
+            offsetX = canvas.width / 2;
+            offsetY = canvas.height / 2 + 50;
+            drawBoard();
+        }
+
+        function toggleNodes() {
+            showNodes = !showNodes;
+            drawBoard();
+        }
+
+        // Mouse interaction
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            // Check if hovering over a tile or node
+            // For simplicity, just show coordinates
+            document.getElementById('infoText').textContent = 
+                `Mouse: (${Math.round(mouseX)}, ${Math.round(mouseY)})`;
+        });
+
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            document.getElementById('infoText').textContent = 
+                `Clicked at: (${Math.round(mouseX)}, ${Math.round(mouseY)})`;
+        });
+
+        // Pan with mouse drag
+        let isDragging = false;
+        let lastX, lastY;
+
+        canvas.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            lastX = e.clientX;
+            lastY = e.clientY;
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                const dx = e.clientX - lastX;
+                const dy = e.clientY - lastY;
+                offsetX += dx;
+                offsetY += dy;
+                lastX = e.clientX;
+                lastY = e.clientY;
+                drawBoard();
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            isDragging = false;
+        });
+
+        // Initialize
+        loadBoard();
+    </script>
+</body>
+</html>
