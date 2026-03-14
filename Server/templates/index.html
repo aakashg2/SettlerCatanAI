@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Catan Game Server</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 800px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 40px;
+            font-size: 1.1em;
+        }
+
+        .status {
+            background: #f0f9ff;
+            border-left: 4px solid #0284c7;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+
+        .status h2 {
+            color: #0284c7;
+            margin-bottom: 10px;
+            font-size: 1.3em;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            background: #22c55e;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        .info-card {
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 12px;
+            border: 2px solid #e2e8f0;
+        }
+
+        .info-card h3 {
+            color: #334155;
+            margin-bottom: 8px;
+            font-size: 1.1em;
+        }
+
+        .info-card p {
+            color: #64748b;
+            font-size: 0.95em;
+        }
+
+        .test-button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: all 0.3s;
+        }
+
+        .test-button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .response {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f1f5f9;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .response.show {
+            display: block;
+        }
+
+        .response pre {
+            background: #1e293b;
+            color: #94a3b8;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: 0.9em;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 30px;
+            color: #94a3b8;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎲 Catan Game Server</h1>
+        <p class="subtitle">Your game server is up and running!</p>
+
+        <div class="status">
+            <h2>Server Status</h2>
+            <div class="status-indicator">
+                <span class="status-dot"></span>
+                <span id="status-text">Checking connection...</span>
+            </div>
+        </div>
+
+        <div class="info-grid">
+            <div class="info-card">
+                <h3>📡 Server</h3>
+                <p>Flask development server</p>
+            </div>
+            <div class="info-card">
+                <h3>🌐 Port</h3>
+                <p>Running on port 5000</p>
+            </div>
+            <div class="info-card">
+                <h3>🔧 Debug Mode</h3>
+                <p>Enabled (auto-reload)</p>
+            </div>
+            <div class="info-card">
+                <h3>🎮 Game Logic</h3>
+                <p>Not yet implemented</p>
+            </div>
+        </div>
+
+        <button class="test-button" onclick="testConnection()">
+            Test Server Connection
+        </button>
+
+        <div class="response" id="response">
+            <h3>Server Response:</h3>
+            <pre id="response-content"></pre>
+        </div>
+
+        <footer>
+            Ready to add game logic when you are!
+        </footer>
+    </div>
+
+    <script>
+        // Check server status on page load
+        async function checkStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+                
+                if (data.status === 'online') {
+                    document.getElementById('status-text').textContent = 
+                        '✅ Server is online and ready';
+                }
+            } catch (error) {
+                document.getElementById('status-text').textContent = 
+                    '❌ Error connecting to server';
+            }
+        }
+
+        // Test connection button
+        async function testConnection() {
+            const responseDiv = document.getElementById('response');
+            const responseContent = document.getElementById('response-content');
+            
+            try {
+                const response = await fetch('/api/hello');
+                const data = await response.json();
+                
+                responseContent.textContent = JSON.stringify(data, null, 2);
+                responseDiv.classList.add('show');
+            } catch (error) {
+                responseContent.textContent = 'Error: ' + error.message;
+                responseDiv.classList.add('show');
+            }
+        }
+
+        // Run status check when page loads
+        checkStatus();
+    </script>
+</body>
+</html>

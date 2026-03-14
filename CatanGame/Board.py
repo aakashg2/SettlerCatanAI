@@ -13,6 +13,8 @@ class Board:
     resources = None
     numbers = None
     tiles = []
+    robber = None
+    devCards = []
     tilemaplist = [{0:1, 240: 3, 300: 4},
            {0: 2, 180: 0, 240: 4, 300: 5},
            {180: 1, 240: 5, 300: 6},
@@ -36,21 +38,25 @@ class Board:
     for i in range(2,13):
         die[i] = []
     die[-1] = []
-
+    
     def __init__(self):
         self.G = nx.Graph()
         self.nodemap = {}
-        self.resources = ["rock"] * 3 + ["mud"] * 3 + ["wheat"] * 4 + ["tree"] * 4 + ["sheep"] * 4
+        self.resources = ["rock"] * 3 + ["mud"] * 3 + ["wheat"] * 4 + ["wood"] * 4 + ["sheep"] * 4
         self.numbers = [2,12] + 2 * [3,4,5,6,8,9,10,11]
+        self.devCards = ['Knight'] * 14 + ['Road Building'] * 2 + ['YOP'] * 2 + ['Mono'] * 2 + ['VP'] * 5
+        random.shuffle(self.devCards)
         random.shuffle(self.resources)
         random.shuffle(self.numbers)
         interval = random.randint(0, 19)
+        self.robber = interval
         self.resources = self.resources[0:interval] + ['desert'] + self.resources[interval:]
         self.numbers = self.numbers[0:interval] + [-1] + self.numbers[interval:]
         self.tiles = []
         for i in range(19):
             number = self.numbers.pop()
-            tmp_tile = Tile(resource=self.resources.pop(), number = number, G = self.G)
+            resource = self.resources.pop()
+            tmp_tile = Tile(resource=resource, number = number, G = self.G)
             self.tiles.append(tmp_tile)
             self.die[number].append(tmp_tile)
 
@@ -74,6 +80,14 @@ class Board:
                     self.join60(self.tiles[tilemap[direction]], self.tiles[i], self.tiles)
                 else:
                     self.join120(self.tiles[tilemap[direction]], self.tiles[i], self.tiles)
+        
+        seen = set()
+        for (tile_idx, node_idx), node in sorted(self.nodemap.items()):
+            if id(node) in seen:
+                continue
+            seen.add(id(node))
+            if node.resources == [None] * 3:
+                node.resources = [self.tiles[tile_idx].resource, None, None]
 
         return
 
@@ -81,8 +95,44 @@ class Board:
 
     def getTiles(self): return self.tiles
 
+    def debug_nodes(self):
+        """Print every unique node with its (tile_idx, node_idx) keys, resources, numbers, and owner."""
+        W_ALIAS = 50
+        W_RES   = 36
+        W_NUM   = 28
+        W_OWNER = 12
+        header = (
+            "aliases (tile_idx,node_idx)[tile_resource]".center(W_ALIAS) + " | " +
+            "node resources".center(W_RES) + " | " +
+            "numbers".center(W_NUM) + " | " +
+            "owner".center(W_OWNER)
+        )
+        print(header)
+        print("-" * len(header))
+
+        seen = set()
+        for (tile_idx, node_idx), node in sorted(self.nodemap.items()):
+            if id(node) in seen:
+                continue
+            seen.add(id(node))
+            aliases_str    = "  ".join(
+                f"({t},{n})[{self.tiles[t].resource}]"
+                for (t, n), nd in sorted(self.nodemap.items()) if nd is node
+            )
+            resources_str  = str(node.resources)
+            numbers_str    = str(node.numbers)
+            owner_str      = str(node.owner)
+            print(
+                aliases_str.center(W_ALIAS) + " | " +
+                resources_str.center(W_RES) + " | " +
+                numbers_str.center(W_NUM) + " | " +
+                owner_str.center(W_OWNER)
+            )
+
+
     # When Tile A is to the left of Tile B
     def join0(self,  a: Tile, b: Tile, Tiles):
+        idx_a = Tiles.index(a)
         idx_b = Tiles.index(b)
         tmp1 = b.nodes[2]
         tmp2 = b.nodes[3]
@@ -123,6 +173,8 @@ class Board:
         #b.nodes[2].resources = list(set(b.nodes[2].resources + tmp1.resources))
         b.nodes[2].resources[2] = b.resource
         b.nodes[2].resources[1] = a.resource
+        b.nodes[2].resources_idx[2] = idx_b
+        b.nodes[2].resources_idx[1] = idx_a
         #b.nodes[2].numbers = list(set(b.nodes[2].numbers + tmp1.numbers))
         b.nodes[2].numbers[2] = b.number
         b.nodes[2].numbers[1] = a.number
@@ -130,6 +182,8 @@ class Board:
         #b.nodes[3].resources = list(set(b.nodes[3].resources + tmp2.resources))
         b.nodes[3].resources[0] = a.resource
         b.nodes[3].resources[1] = b.resource
+        b.nodes[2].resources_idx[0] = idx_a
+        b.nodes[3].resources_idx[1] = idx_b
         #b.nodes[3].numbers = list(set(b.nodes[3].numbers + tmp2.numbers))
         b.nodes[3].numbers[0] = a.number
         b.nodes[3].numbers[1] = b.number
@@ -138,7 +192,7 @@ class Board:
 
     def join60(self, a: Tile, b: Tile, Tiles):
         idx_b = Tiles.index(b)
-
+        idx_a = Tiles.index(a)
         neighbors1 = list(self.G.neighbors(b.nodes[3]))
         neighbors2 = list(self.G.neighbors(b.nodes[4]))
         
@@ -176,6 +230,8 @@ class Board:
         #a.nodes[1].resources = list(set(a.nodes[1].resources + tmp1.resources))
         a.nodes[1].resources[1] = b.resource
         a.nodes[1].resources[2] = a.resource
+        a.nodes[1].resources_idx[1] = idx_b
+        a.nodes[1].resources_idx[2] = idx_a
         #a.nodes[1].numbers = list(set(a.nodes[1].numbers + tmp1.numbers))  
         a.nodes[1].numbers[1] = b.number
         a.nodes[1].numbers[2] = a.number
@@ -183,6 +239,8 @@ class Board:
         #a.nodes[0].resources = list(set(a.nodes[0].resources + tmp2.resources))
         a.nodes[0].resources[0] = b.resource
         a.nodes[0].resources[1] = a.resource
+        a.nodes[0].resources_idx[0] = idx_b
+        a.nodes[0].resources_idx[1] = idx_a
         #a.nodes[0].numbers = list(set(a.nodes[0].numbers + tmp2.numbers))
         a.nodes[0].numbers[0] = b.number
         a.nodes[0].numbers[1] = a.number
@@ -190,7 +248,7 @@ class Board:
 
     def join120(self, a: Tile, b: Tile, Tiles):
         idx_b = Tiles.index(b)
-
+        idx_a = Tiles.index(a)
         neighbors1 = list(self.G.neighbors(b.nodes[4]))
         neighbors2 = list(self.G.neighbors(b.nodes[5]))
         
@@ -229,6 +287,8 @@ class Board:
         #b.nodes[4].resources = list(set(b.nodes[4].resources + tmp1.resources))
         b.nodes[4].resources[0] = b.resource
         b.nodes[4].resources[2] = a.resource
+        b.nodes[4].resources_idx[0] = idx_b
+        b.nodes[4].resources_idx[2] = idx_a
         #b.nodes[4].numbers = list(set(b.nodes[4].numbers + tmp1.numbers))
         b.nodes[4].numbers[0] = b.number
         b.nodes[4].numbers[2] = a.number
@@ -236,6 +296,8 @@ class Board:
         #b.nodes[5].resources = list(set(b.nodes[5].resources + tmp2.resources))
         b.nodes[5].resources[0] = b.resource
         b.nodes[5].resources[2] = a.resource
+        b.nodes[5].resources_idx[0] = idx_b
+        b.nodes[5].resources_idx[2] = idx_a
         #b.nodes[5].numbers = list(set(b.nodes[5].numbers + tmp2.numbers))
         b.nodes[5].numbers[0] = b.number
         b.nodes[5].numbers[2] = a.number
@@ -243,127 +305,3 @@ class Board:
 
 
 
-    def draw_tiles_only(self):
-        NODE_ANGLES = [math.radians(a) for a in [30, 330, 270, 210, 150, 90]]
-        NODE_RADIUS = 1.0
-        HEX_WIDTH = 2.0
-        HEX_HEIGHT = math.sqrt(3)
-
-        # Tile layout
-        TILE_LAYOUT = [
-            [0, 1, 2],
-            [3, 4, 5, 6],
-            [7, 8, 9, 10, 11],
-            [12, 13, 14, 15],
-            [16, 17, 18]
-        ]
-        
-        # Compute tile centers
-        tile_centers = {}
-        for row_idx, row in enumerate(TILE_LAYOUT):
-            x_offset = -(len(row) - 1) * HEX_WIDTH / 2.0
-            y = -row_idx * HEX_HEIGHT * 0.75
-            for col_idx, tile_idx in enumerate(row):
-                tile_centers[tile_idx] = (x_offset + col_idx * HEX_WIDTH, y)
-
-        # Compute the 6 corner positions for each tile
-        def get_corners(tile_idx):
-            cx, cy = tile_centers[tile_idx]
-            return [(cx + NODE_RADIUS * math.cos(NODE_ANGLES[i]),
-                    cy + NODE_RADIUS * math.sin(NODE_ANGLES[i])) for i in range(6)]
-
-        # Build a unique node registry based on rounded coordinates
-        node_registry = {}  # (rounded_x, rounded_y) -> unique_node_id
-        next_node_id = 0
-        tile_nodes = {}  # tile_idx -> [6 unique node IDs]
-        
-        for tile_idx in range(19):
-            corners = get_corners(tile_idx)
-            tile_nodes[tile_idx] = []
-            
-            for corner in corners:
-                # Round to avoid floating point issues
-                key = (round(corner[0], 6), round(corner[1], 6))
-                
-                if key not in node_registry:
-                    node_registry[key] = next_node_id
-                    next_node_id += 1
-                
-                tile_nodes[tile_idx].append(node_registry[key])
-
-        # Create a reverse mapping for plotting
-        node_positions = {node_id: key for key, node_id in node_registry.items()}
-
-        # Draw
-        fig, ax = plt.subplots(figsize=(14, 12))
-        ax.set_aspect('equal')
-
-        # Polygon winding order
-        WINDING = [0, 5, 4, 3, 2, 1]
-
-        for tile_idx in range(19):
-            corners = get_corners(tile_idx)
-            poly_corners = [corners[i] for i in WINDING]
-
-            # Draw hex
-            polygon = plt.Polygon(poly_corners, facecolor='#DDDDDD', edgecolor='#555555', linewidth=1.5, zorder=1)
-            ax.add_patch(polygon)
-
-            # Tile index label at center
-            cx, cy = tile_centers[tile_idx]
-            ax.text(cx, cy, str(tile_idx), ha='center', va='center',
-                    fontsize=14, fontweight='bold', color='#333333', zorder=2)
-
-        # Draw unique nodes (only once each)
-        for node_id, (nx, ny) in node_positions.items():
-            ax.plot(nx, ny, 'o', color='#42A5F5', markersize=8,
-                    markeredgecolor='black', markeredgewidth=1.5, zorder=3)
-            
-            # Find center of nearest tile for offset direction
-            min_dist = float('inf')
-            nearest_center = None
-            for tile_idx in range(19):
-                cx, cy = tile_centers[tile_idx]
-                dist = math.sqrt((nx - cx)**2 + (ny - cy)**2)
-                if dist < min_dist:
-                    min_dist = dist
-                    nearest_center = (cx, cy)
-            
-            cx, cy = nearest_center
-            dx = nx - cx
-            dy = ny - cy
-            length = math.sqrt(dx*dx + dy*dy)
-            ox = nx + (dx / length) * 0.25
-            oy = ny + (dy / length) * 0.25
-            
-            ax.text(ox, oy, str(node_id), ha='center', va='center',
-                    fontsize=7, color='red', zorder=4)
-
-        ax.set_title(f"Tiles with unique nodes (Total: {next_node_id} nodes)", fontsize=16, fontweight='bold')
-        ax.axis('off')
-        plt.tight_layout()
-        plt.show()
-    # tilemaplist = [{0:1, 240: 3, 300: 4},
-    #         {0: 2, 180: 0, 240: 4, 300: 5},
-    #         {180: 1, 240: 5, 300: 6},
-    #         {0:4, 60: 0, 240: 7, 300: 8},
-    #         {0:5, 60:1, 120:0, 180:3, 240: 8, 300: 9},
-    #         {0:6, 60: 2, 120: 1, 180: 4, 240: 9, 300: 10},
-    #         {120:2, 180:5, 240:10, 300:11},
-    #         {0:8, 60:3,300:12},
-    #         {0:9, 60:4, 120:3, 180:7, 240:12,300:13},
-    #         {0:10, 60:5, 120:4, 180:8, 240:13, 300:14},
-    #         {0:11, 60:6, 120:5, 180:9, 240:14, 300:15},
-    #         {120:6, 180: 10, 240:15},
-    #         {0:13, 60:8,120:7,300:16},
-    #         {0:14, 60:9, 120:8,180:12,240:16, 300:17},
-    #         {0:15, 60:10, 120:9, 180:13, 240:17, 300:18},
-    #         {60:11, 120:10, 180:14, 240:18},
-    #         {0:17, 60:13, 120:12},
-    #         {0:18, 60:14, 120:13, 180:16},
-    #         {60:15, 120:14, 180:17}]
-
-
-# board = Board()
-# G = board.G
-    # Debugger Function

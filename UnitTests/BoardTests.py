@@ -12,7 +12,10 @@ from CatanGame.Tile import Tile
 
 #testboard = Board()
 class TestBoardConstruction(unittest.TestCase):
-    board = Board()
+    #board = Board()
+    def setUp(self):
+        board = Board()
+        return
     def test_nodemapchecker(self):
         # Test connections with Tile 0
         assert self.board.nodemap[(0,0)] is self.board.nodemap[(1,2)]

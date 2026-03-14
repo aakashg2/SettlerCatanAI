@@ -13,6 +13,7 @@ class Node:
     # Whether or not this spot has a settlement or city on it.   
     def __init__(self, resource, number):
         self.occupied = None
+        self.resources_idx = [None, None, None]
         self.resources = [None, None, None]
         self.numbers = [None, None, None]
         self.owner = None

@@ -9,8 +9,8 @@ class Tile:
         self.number = number
         self.nodes = [Node(resource, number) for i in range(6)]
         for i in range(len(self.nodes)-1):
-            G.add_edge(self.nodes[i], self.nodes[i+1])
-        G.add_edge(self.nodes[5], self.nodes[0])
+            G.add_edge(self.nodes[i], self.nodes[i+1], owner=None, roadowner=None)
+        G.add_edge(self.nodes[5], self.nodes[0], owner=None, roadowner=None)
     def show(self):
         output = ""
         for i, node in enumerate(self.nodes):

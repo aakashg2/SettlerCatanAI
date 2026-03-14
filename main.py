@@ -2,60 +2,41 @@ from CatanGame.Game import Game
 from CatanGame.Board import Board
 from CatanGame.Tile import Tile
 from CatanGame.Player import Player
+from CatanGame.BoardVisualizer import BoardVisualizer
 import networkx as nx
+import threading
 
-def main():
+def game_logic(game, viz):
+    # resources = ['Rock', 'Sheep', 'Wheat', "Mud", "Wood"]
+    # for resource in resources:
+    #     for player in game.players:
+    #         player.addCards(3, resource)
+
+    viz.request_pause("Board ready — press SPACE to start setup phase")
+    game.setupPhase(debug=True, on_update=viz.request_refresh)
     
-    numberNone = []
-    resourceNone = []
-    board = Board()
-    # for i in range(len(board.tiles)):
-    #     for j in range(len(board.tiles[i].nodes)):
-    #         if None in board.tiles[i].nodes[j].numbers:
-    #             numberNone.append((i,j))
-    #         if None in board.tiles[i].nodes[j].resources:
-    #             resourceNone.append((i,j))
-    # print(numberNone)
-    # print(resourceNone)
-    # node1 = board.nodemap[(0,0)]
-    # node2 = board.nodemap[(0,5)]
-    # node3 = board.nodemap[(5,0)]
-    # for i, tile in enumerate(board.tiles):
-    #     print(str(i)+ "," + tile.resource + "," + str(tile.number))
-        
-    # print(node1.numbers)
-    # print(node1.resources)
-    # print("---")
-    # print(node2.numbers)
-    # print(node2.resources)
-    # print("---")
-    # print(node3.numbers)
-    # print(node3.resources)
-    game = Game(4, board, 10, 7, debug = True)
-    game.setupPhase(debug=True)
-    game.rollDice(game.players[0])
-    game.rollDice(game.players[1])
-    game.rollDice(game.players[2])
-    game.rollDice(game.players[3])
+    while game._check_winner() == False:
+        for i, player in enumerate(game.players):
+            viz.request_pause("Player " + str(player.name) + ": press SPACE to roll the dice")
+            game.rollDice(player)
+            viz.request_pause("Player " + str(player.name) + ": press SPACE to start Build/Trading Phase phase")
+            game.StartTradingPhase(player)
+            game.StartBuildingPhase(player)
+            viz.request_refresh()
+            if i < len(game.players) - 1:
+                viz.request_pause(f"{player.name} done — press SPACE for next player")
+
     #game.startGame()
 
-    # player1 = Player("Adam", "Red")
-    # player2 = Player("Aryan", "Blue")
-    # player3 = Player("Pesto", "Green")
-        
-    # #     # Add cards
-
-    # player1.addCards(3,"Wood")
-    # player1.addCards(3,"Mud")
-    # player1.addCards(3,"Sheep")
-    # player1.addCards(3,"Wheat")
-    # player2.addCards(3,"Wood")
-    # player2.addCards(3,"Mud")
-    # player2.addCards(3,"Sheep")
-    # player2.addCards(3,"Wheat")
-    # player1.build_settlement(board, 4, 1)
-    # player2.build_settlement(board, 4, 5)
-    # print(player1.rollmap)
+def main():
+    board = Board()
+    #board.debug_nodes()
+    game = Game(4, board, 10, 7, debug=True)
+    viz = BoardVisualizer(game.board, game.players)
+    #viz.draw()
+    t = threading.Thread(target=game_logic, args=(game, viz), daemon=True)
+    t.start()
+    viz.run_loop()  # main thread: keeps pygame alive and responsive
 
 if __name__ == "__main__":
     main()

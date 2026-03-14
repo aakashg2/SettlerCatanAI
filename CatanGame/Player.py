@@ -4,7 +4,7 @@ import random
 class Player:
     name = None
     color = None
-    cards = {"rock": 0, "wood": 0, "wheat": 0, "mud": 0, "sheep": 0}
+    cards = None
     num_VPs = 0
     roads_inventory = 15
     settlements = []
@@ -12,7 +12,7 @@ class Player:
     rollmap = None
     settlements_inventory = 5
     cities_inventory = 4
-    dev_cards_inventory = []
+    dev_cards_inventory = None
     has_longest_road = False
     has_largest_army = False
     def __init__(self, name, color):
@@ -61,9 +61,9 @@ class Player:
             self.num_VPs+=1
             for i in range(len(node.numbers)):
                 if node.numbers[i] != None:
-                    self.rollmap[node.numbers[i]].append((1, node.resources[i]))
+                    self.rollmap[node.numbers[i]].append((1, node.resources[i], node.resources_idx[i]))
             return "Created a Settlement"
-        if ((self.cards['mud'] >= 1) and (self.cards['sheep'] >= 1) and (self.cards['wood'] >= 1) and (self.cards['wheat'] >= 1) or (setup)):
+        if ((self.cards['mud'] >= 1) and (self.cards['sheep'] >= 1) and (self.cards['wood'] >= 1) and (self.cards['wheat'] >= 1)):
             self.cards['mud'] -=1
             self.cards['sheep'] -= 1
             self.cards['wood'] -=1
@@ -72,12 +72,9 @@ class Player:
             node.owner = self.name
             self.settlements_inventory-=1
             self.num_VPs+=1
-            print("---")
-            print(node.numbers)
-            print(node.resources)
-            print("---")
             for i in range(len(node.numbers)):
-                self.rollmap[node.numbers[i]].append((1, node.resources[i]))
+                if node.numbers[i] != None:
+                    self.rollmap[node.numbers[i]].append((1, node.resources[i], node.resources_idx[i]))
             return "Created a Settlement"
         else:
             return "You dont have the required resources"
@@ -88,7 +85,7 @@ class Player:
             return "Not enough cities"
         if (self.settlements_inventory == 5):
            return "You need to build a settlement first!" 
-        if not ((self.cards['rock'] < 3) or (self.cards['wheat'] < 2)):
+        if not ((self.cards['rock'] >= 3) or (self.cards['wheat'] >= 2)):
             self.cards['rock'] -= 3
             self.cards['wheat'] -= 2
             self.cities_inventory -=1
@@ -98,12 +95,11 @@ class Player:
             self.num_VPs+=1
             node = Board.nodemap[(tile_idx, node_idx)]
             for i in range(len(node.numbers)):
-                self.rollmap[(node.numbers[i])] = [(x+1, y) for x,y in self.rollmap[(node.numbers[i])]]
+                self.rollmap[(node.numbers[i])] = [(x+1, y, z) for x,y,z in self.rollmap[(node.numbers[i])]]
             return "Created a city"
         else:
             return "Insufficient Cards"
     
-
     def build_road(self, Board: Board, startingposition: tuple, endingposition: tuple, setup = False):
         if not ((self.cards['wood'] >= 1 and self.cards['mud'] >= 1) or (setup)):
             return "You dont have the required resources"
@@ -114,6 +110,9 @@ class Player:
             if (Board.G[beginningnode][endingnode]['roadowner'] == None): # Ensure the edge is unoccupied
                 Board.G[beginningnode][endingnode]['roadowner'] = self.name
                 self.roads_inventory-=1
+                if not setup: 
+                    self.cards['wood']-=1
+                    self.cards['mud']-=1
                 return "Added the Road"
             else:
                 return "Your road or someone else's road is in the way"
@@ -133,15 +132,16 @@ class Player:
                 if Board.G[beginningnode][endingnode]['roadowner'] == None:
                     Board.G[beginningnode][endingnode]['roadowner'] = self.name
                     self.roads_inventory-=1
+                    if not setup:
+                        self.cards['wood']-=1
+                        self.cards['mud']-=1
                     return "Added the Road"
                 else:
                     return "Another road is in the way"
             else:
                 return "Your road must connect to a road that you own"
 
-
-
-    def removeCards(self):
+    def removeCards(self): # Function used to remove a random card when robbing a player
         num_cards = sum(self.cards.values())
         if num_cards == 0:
             return None
@@ -156,10 +156,10 @@ class Player:
         return "You shouldnt be here"
 
     def addCards(self, num_resources, ResourceType):
+        if ResourceType == None or ResourceType == 'desert': return "Resource is None or desert"
         if ResourceType.lower() in self.cards:
             self.cards[ResourceType.lower()]+=num_resources
         else:
             print("That does not match a resource")
         return
-
         # Get a list of settlements
