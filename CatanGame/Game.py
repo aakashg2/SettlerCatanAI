@@ -262,7 +262,7 @@ class Game:
             print("No Cards to Take")
             return
         print('Which player would you want to take from?')
-        print(susceptible_players)            
+        print([p.name for p in susceptible_players])            
         index = int(input("Enter the idx"))
         assert type(index) is int
         player_to_steal = susceptible_players[index]
